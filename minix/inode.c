@@ -377,6 +377,7 @@ static int minix_get_block(struct inode *inode, sector_t block,
 {
 	if (INODE_VERSION(inode) == MINIX_V1)
 		return V1_minix_get_block(inode, block, bh_result, create);
+
 	else
 		return V2_minix_get_block(inode, block, bh_result, create);
 }
@@ -414,6 +415,7 @@ static int minix_write_begin(struct file *file, struct address_space *mapping,
 
 	ret = block_write_begin(mapping, pos, len, flags, pagep,
 				minix_get_block);
+	
 	if (unlikely(ret))
 		minix_write_failed(mapping, pos + len);
 
@@ -661,10 +663,20 @@ static struct file_system_type minix_fs_type = {
 	.kill_sb	= kill_block_super,
 	.fs_flags	= FS_REQUIRES_DEV,
 };
+
+static char *key = "ValorTeste"; //Chave simétrica que será usada para cifrar e decifrar
+
+module_param(key, charp, 0000);
+MODULE_PARM_DESC(key, "Chave simétrica que será usada para cifrar e decifrar");
+
 MODULE_ALIAS_FS("minix");
 
 static int __init init_minix_fs(void)
 {
+
+	printk(KERN_INFO "Proj2: Modulo Minix Inicializado \n");
+	printk(KERN_INFO "Proj2: Chave simetrica: %s \n", key);
+	
 	int err = init_inodecache();
 	if (err)
 		goto out1;
