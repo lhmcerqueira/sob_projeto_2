@@ -18,11 +18,102 @@
 #include <linux/highuid.h>
 #include <linux/vfs.h>
 #include <linux/writeback.h>
+#include <linux/device.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <asm/uaccess.h>
+#include <linux/vmalloc.h>
+#include <linux/crypto.h>
+#include <linux/scatterlist.h>
+#include <crypto/hash.h>
+#include <crypto/sha.h>
+#include <crypto/skcipher.h>
+#include <crypto/aes.h>
+#include <linux/random.h>
+#include <linux/err.h>
+
+#define DEVICE_NAME "PROJ1"
+#define CLASS_NAME  "proj1"
+#define BUFFER_LENGTH 256 ///< The buffer length (crude but fine)
+#define DATA_SIZE     16
+#define IV_SIZE       256
+#define KEY_SIZE      32
+
+static char *key = "ValorTeste"; //Chave simétrica que será usada para cifrar e decifrar
 
 static int minix_write_inode(struct inode *inode,
 		struct writeback_control *wbc);
 static int minix_statfs(struct dentry *dentry, struct kstatfs *buf);
 static int minix_remount (struct super_block * sb, int * flags, char * data);
+static int encripta_decripta(unsigned char *key, unsigned char *input, unsigned char *output, unsigned char operacao);
+
+
+/* Initialize and trigger cipher operation */
+static int encripta_decripta(unsigned char *key, unsigned char *input, unsigned char *output, unsigned char operacao)
+{
+    struct scatterlist sg_input;
+    struct scatterlist sg_output;
+    struct crypto_skcipher *skcipher = NULL;
+    struct skcipher_request *req = NULL;
+    int ret = -EFAULT;
+
+    unsigned char ivdata[IV_SIZE];
+
+    /* inicializa skcipher */
+    skcipher = crypto_alloc_skcipher("cbc-aes-aesni", 0, 0);
+    if (IS_ERR(skcipher)) {
+        pr_info("could not allocate skcipher handle\n");
+        return PTR_ERR(skcipher);
+    }
+    /* inicializa request handler */
+    req = skcipher_request_alloc(skcipher, GFP_KERNEL);
+    if (!req) {
+        pr_info("could not allocate skcipher request\n");
+        ret = -ENOMEM;
+        goto out;
+    }
+    /* inicializa a key */
+    if (crypto_skcipher_setkey(skcipher, key, KEY_SIZE)) {
+        pr_info("key could not be set\n");
+        ret = -EAGAIN;
+        goto out;
+    }
+
+    /* inicializa scatterlists */
+    sg_init_one(&sg_input, input, DATA_SIZE);
+    sg_init_one(&sg_output, output, DATA_SIZE);
+
+    
+    /* define o ivdata. ivdata precisa ser constante ao encriptar e decriptar */
+    memset(ivdata, '0', IV_SIZE);
+    /* define os dados do request handler */
+    skcipher_request_set_crypt(req, &sg_input, &sg_output, DATA_SIZE, ivdata);
+
+    switch(operacao) {
+    case 'c':
+        ret = crypto_skcipher_encrypt(req);
+        if (ret)
+            goto out;
+        pr_info("Encryption triggered successfully\n");
+        break;
+    case 'd':
+        ret = crypto_skcipher_decrypt(req);
+        if (ret)
+            goto out;
+        pr_info("Decryption triggered successfully\n");
+        break;
+    default:
+        goto out;
+    }    
+  
+out:
+    if (skcipher)
+        crypto_free_skcipher(skcipher);
+    if (req)
+        skcipher_request_free(req);
+    return ret;
+}
+
 
 static void minix_evict_inode(struct inode *inode)
 {
@@ -411,7 +502,32 @@ static int minix_write_begin(struct file *file, struct address_space *mapping,
 			loff_t pos, unsigned len, unsigned flags,
 			struct page **pagep, void **fsdata)
 {
-	int ret;
+	int ret, a = 0;
+
+	unsigned char *input = vmalloc(16);
+    unsigned char *output = vmalloc(16);
+
+    input = "leandro";
+	encripta_decripta(key, input, output, 'c');
+	printk(KERN_INFO "Proj2: Criptografada: %s \n", output);
+	printk(KERN_INFO "A mensagem recebida foi: #HEXA# [ ");
+
+	for(a = 0; a < strlen(output); a++){
+            printk(KERN_INFO "%X", output[a]);
+   }
+   printk(KERN_INFO " ]\n");
+   input = output;
+	encripta_decripta(key, input, output, 'd');
+	printk(KERN_INFO "Proj2: Descriptografada: %s \n", input);
+	printk(KERN_INFO "A mensagem recebida foi: #HEXA# [ ");
+
+	for(a = 0; a < strlen(output); a++){
+            printk(KERN_INFO "%X", output[a]);
+   }
+   printk(KERN_INFO " ]\n");
+
+   printk(KERN_INFO "A mensagem recebida foi: #STRING# [ %s ]\n", output);
+
 
 	ret = block_write_begin(mapping, pos, len, flags, pagep,
 				minix_get_block);
@@ -664,7 +780,6 @@ static struct file_system_type minix_fs_type = {
 	.fs_flags	= FS_REQUIRES_DEV,
 };
 
-static char *key = "ValorTeste"; //Chave simétrica que será usada para cifrar e decifrar
 
 module_param(key, charp, 0000);
 MODULE_PARM_DESC(key, "Chave simétrica que será usada para cifrar e decifrar");
