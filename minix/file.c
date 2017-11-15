@@ -7,6 +7,10 @@
  */
 
 #include "minix.h"
+#include <linux/swap.h>
+#include <linux/uio.h>
+
+
 
 ssize_t sob2_file_read_iter(struct kiocb *iocb, struct iov_iter *iter);
 ssize_t sob2_file_write_iter(struct kiocb *iocb, struct iov_iter *from);
@@ -16,17 +20,6 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos, struct iov_
  * We have mostly NULLs here: the current defaults are OK for
  * the minix filesystem.
  */
-struct iov_iter {
-	int type;
-	size_t iov_offset;
-	size_t count;
-	union {
-		const struct iovec *iov;
-		const struct kvec *kvec;
-		const struct bio_vec *bvec;
-	};
-	unsigned long nr_segs;
-};
 
 const struct file_operations minix_file_operations = {
 	.llseek		= generic_file_llseek,
@@ -63,11 +56,12 @@ static int minix_setattr(struct dentry *dentry, struct iattr *attr)
 
 ssize_t sob2_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
-	printk(KERN_INFO "Proj2: read arquivo \n");
 	struct file *file = iocb->ki_filp;
 	ssize_t retval = 0;
 	loff_t *ppos = &iocb->ki_pos;
 	loff_t pos = *ppos;
+
+	printk(KERN_INFO "Proj2: read arquivo!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
 	if (iocb->ki_flags & IOCB_DIRECT) {
 		struct address_space *mapping = file->f_mapping;
@@ -113,10 +107,11 @@ out:
 
 ssize_t sob2_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 {
-	printk(KERN_INFO "Proj2: wirte arquivo \n");
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	ssize_t ret;
+
+	printk(KERN_INFO "Proj2: wirte arquivo!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
 
 	mutex_lock(&inode->i_mutex);
 	ret = generic_write_checks(iocb, from);
@@ -132,6 +127,12 @@ ssize_t sob2_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 			ret = err;
 	}
 	return ret;
+}
+
+static void shrink_readahead_size_eio(struct file *filp,
+					struct file_ra_state *ra)
+{
+	ra->ra_pages /= 4;
 }
 
 static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
