@@ -7,14 +7,15 @@
  */
 
 #include "minix.h"
+#include "inode.h"
 #include <linux/swap.h>
 #include <linux/uio.h>
-
-
+#include <linux/vmalloc.h>
 
 ssize_t sob2_file_read_iter(struct kiocb *iocb, struct iov_iter *iter);
 ssize_t sob2_file_write_iter(struct kiocb *iocb, struct iov_iter *from);
 static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos, struct iov_iter *iter, ssize_t written);
+
 
 /*
  * We have mostly NULLs here: the current defaults are OK for
@@ -23,8 +24,12 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos, struct iov_
 
 const struct file_operations minix_file_operations = {
 	.llseek		= generic_file_llseek,
+
+	// .read_iter	= generic_file_read_iter,
+	// .write_iter	= generic_file_write_iter,
 	.read_iter	= sob2_file_read_iter,
 	.write_iter	= sob2_file_write_iter,
+
 	.mmap		= generic_file_mmap,
 	.fsync		= generic_file_fsync,
 	.splice_read	= generic_file_splice_read,
@@ -110,11 +115,51 @@ ssize_t sob2_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	ssize_t ret;
+	// char *dados_arquivo ="SOB-PREJ2!!!!!!!!!";
+	int a = 0;
+
+	unsigned char *input = vmalloc(16);
+    unsigned char *output = vmalloc(16);
+
+	
+	mutex_lock(&inode->i_mutex);
 
 	printk(KERN_INFO "Proj2: wirte arquivo!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
 
-	mutex_lock(&inode->i_mutex);
-	ret = generic_write_checks(iocb, from);
+	printk(KERN_INFO "Proj2: Conteudo do arquivo: %s %zu", (char *)from->iov->iov_base, from->iov->iov_len);
+
+
+    input = (char *)from->iov->iov_base;
+    printk(KERN_INFO "Proj2: Dados para criptografar: #STRING# %s \n", input);
+	encripta_decripta(input, output, 'c');
+	printk(KERN_INFO "Proj2: Dados criptografados: #HEXA# [ ");
+
+	for(a = 0; a < strlen(output); a++){
+           printk(KERN_INFO "%X", output[a]);
+   }
+   printk(KERN_INFO " ]\n");
+   input = output;
+   printk(KERN_INFO "Proj2: Dados para descriptografados: %s \n", input);
+	encripta_decripta(input, output, 'd');
+	printk(KERN_INFO "Proj2: Dados descriptografados: #HEXA# [ ");
+
+	for(a = 0; a < strlen(output); a++){
+           printk(KERN_INFO "%X", output[a]);
+   }
+   printk(KERN_INFO " ]\n");
+
+   printk(KERN_INFO "Proj2: Dados descriptografados: #STRING#  %s \n", output);
+
+	// copy_from_iter(dados_arquivo, sizeof(dados_arquivo), from);
+
+	// copy_to_iter(&output, sizeof(output), from);
+
+	// printk(KERN_INFO "Proj2: Conteudo do arquivo MODIFICADO: %s %zu \n", dados_arquivo, from->iov->iov_len);
+
+
+
+
+		ret = generic_write_checks(iocb, from);
 	if (ret > 0)
 		ret = __generic_file_write_iter(iocb, from);
 	mutex_unlock(&inode->i_mutex);

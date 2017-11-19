@@ -35,7 +35,7 @@
 #define DEVICE_NAME "PROJ1"
 #define CLASS_NAME  "proj1"
 #define BUFFER_LENGTH 256 ///< The buffer length (crude but fine)
-#define DATA_SIZE     16
+#define DATA_SIZE     256 //Para aumentar a quantidade de caracteres do arquivo ## aumentar ou diminuair esse valor ##
 #define IV_SIZE       256
 #define KEY_SIZE      32
 
@@ -45,74 +45,73 @@ static int minix_write_inode(struct inode *inode,
 		struct writeback_control *wbc);
 static int minix_statfs(struct dentry *dentry, struct kstatfs *buf);
 static int minix_remount (struct super_block * sb, int * flags, char * data);
-// static int encripta_decripta(unsigned char *key, unsigned char *input, unsigned char *output, unsigned char operacao);
 
 
 /* Initialize and trigger cipher operation */
-// static int encripta_decripta(unsigned char *key, unsigned char *input, unsigned char *output, unsigned char operacao)
-// {
-//     struct scatterlist sg_input;
-//     struct scatterlist sg_output;
-//     struct crypto_skcipher *skcipher = NULL;
-//     struct skcipher_request *req = NULL;
-//     int ret = -EFAULT;
+int encripta_decripta(unsigned char *input, unsigned char *output, unsigned char operacao)
+{
+    struct scatterlist sg_input;
+    struct scatterlist sg_output;
+    struct crypto_skcipher *skcipher = NULL;
+    struct skcipher_request *req = NULL;
+    int ret = -EFAULT;
 
-//     unsigned char ivdata[IV_SIZE];
+    unsigned char ivdata[IV_SIZE];
 
-//     /* inicializa skcipher */
-//     skcipher = crypto_alloc_skcipher("cbc-aes-aesni", 0, 0);
-//     if (IS_ERR(skcipher)) {
-//         pr_info("could not allocate skcipher handle\n");
-//         return PTR_ERR(skcipher);
-//     }
-//     /* inicializa request handler */
-//     req = skcipher_request_alloc(skcipher, GFP_KERNEL);
-//     if (!req) {
-//         pr_info("could not allocate skcipher request\n");
-//         ret = -ENOMEM;
-//         goto out;
-//     }
-//     /* inicializa a key */
-//     if (crypto_skcipher_setkey(skcipher, key, KEY_SIZE)) {
-//         pr_info("key could not be set\n");
-//         ret = -EAGAIN;
-//         goto out;
-//     }
+    /* inicializa skcipher */
+    skcipher = crypto_alloc_skcipher("cbc-aes-aesni", 0, 0);
+    if (IS_ERR(skcipher)) {
+        pr_info("could not allocate skcipher handle\n");
+        return PTR_ERR(skcipher);
+    }
+    /* inicializa request handler */
+    req = skcipher_request_alloc(skcipher, GFP_KERNEL);
+    if (!req) {
+        pr_info("could not allocate skcipher request\n");
+        ret = -ENOMEM;
+        goto out;
+    }
+    /* inicializa a key */
+    if (crypto_skcipher_setkey(skcipher, key, KEY_SIZE)) {
+        pr_info("key could not be set\n");
+        ret = -EAGAIN;
+        goto out;
+    }
 
-//     /* inicializa scatterlists */
-//     sg_init_one(&sg_input, input, DATA_SIZE);
-//     sg_init_one(&sg_output, output, DATA_SIZE);
+    /* inicializa scatterlists */
+    sg_init_one(&sg_input, input, DATA_SIZE);
+    sg_init_one(&sg_output, output, DATA_SIZE);
 
     
-//     /* define o ivdata. ivdata precisa ser constante ao encriptar e decriptar */
-//     memset(ivdata, '0', IV_SIZE);
-//     /* define os dados do request handler */
-//     skcipher_request_set_crypt(req, &sg_input, &sg_output, DATA_SIZE, ivdata);
+    /* define o ivdata. ivdata precisa ser constante ao encriptar e decriptar */
+    memset(ivdata, '0', IV_SIZE);
+    /* define os dados do request handler */
+    skcipher_request_set_crypt(req, &sg_input, &sg_output, DATA_SIZE, ivdata);
 
-//     switch(operacao) {
-//     case 'c':
-//         ret = crypto_skcipher_encrypt(req);
-//         if (ret)
-//             goto out;
-//         pr_info("Encryption triggered successfully\n");
-//         break;
-//     case 'd':
-//         ret = crypto_skcipher_decrypt(req);
-//         if (ret)
-//             goto out;
-//         pr_info("Decryption triggered successfully\n");
-//         break;
-//     default:
-//         goto out;
-//     }    
+    switch(operacao) {
+    case 'c':
+        ret = crypto_skcipher_encrypt(req);
+        if (ret)
+            goto out;
+        pr_info("Encryption triggered successfully\n");
+        break;
+    case 'd':
+        ret = crypto_skcipher_decrypt(req);
+        if (ret)
+            goto out;
+        pr_info("Decryption triggered successfully\n");
+        break;
+    default:
+        goto out;
+    }    
   
-// out:
-//     if (skcipher)
-//         crypto_free_skcipher(skcipher);
-//     if (req)
-//         skcipher_request_free(req);
-//     return ret;
-// }
+out:
+    if (skcipher)
+        crypto_free_skcipher(skcipher);
+    if (req)
+        skcipher_request_free(req);
+    return ret;
+}
 
 
 static void minix_evict_inode(struct inode *inode)
@@ -789,12 +788,12 @@ MODULE_ALIAS_FS("minix");
 
 static int __init init_minix_fs(void)
 {
-
+		
 	int err = init_inodecache();
 
 	printk(KERN_INFO "Proj2: Modulo Minix Inicializado \n");
 	printk(KERN_INFO "Proj2: Chave simetrica: %s \n", key);
-	
+
 	if (err)
 		goto out1;
 	err = register_filesystem(&minix_fs_type);
